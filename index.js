@@ -19,65 +19,110 @@
 
     manager: {},
 
-    floorQueue: (function() {
-        var _queue = {}
-        return {
-            add: function(level, direction) {
-                if ( !_queue[level] ) _queue[level] = { };
-                _queue[level][direction] = true;
+    // floorQueue: (function() {
+    //     var _queue = {}
+    //     return {
+    //         add: function(level, direction) {
+    //             if ( !_queue[level] ) _queue[level] = { };
+    //             _queue[level][direction] = true;
 
-            },
+    //         },
 
-            remove: function(level, direction) {
-                if (! _queue[level] ) return false;
-                if (! _queue[level][direction] ) return false;
+    //         remove: function(level, direction) {
+    //             if (! _queue[level] ) return false;
+    //             if (! _queue[level][direction] ) return false;
 
 
-                delete _queue[level][direction];
+    //             delete _queue[level][direction];
 
-                if ( !Object.keys(_queue[level]).length ) {
-                    delete _queue[level];
-                };
+    //             if ( !Object.keys(_queue[level]).length ) {
+    //                 delete _queue[level];
+    //             };
 
-                return true;
-            },
+    //             return true;
+    //         },
 
-            isClicked: function(level, direction) {
-                return _queue[level] && _queue[level][direction];
-            },
+    //         isClicked: function(level, direction) {
+    //             return _queue[level] && _queue[level][direction];
+    //         },
 
-            getObj: function() {
-                return Object.assign({}, _queue);
-            },
+    //         getObj: function() {
+    //             return Object.assign({}, _queue);
+    //         },
 
-            getNearFloor: function(floorNum, direction) {
-                if (Object.keys(_queue).length) {
+    //         getNearFloor: function(floorNum, direction) {
+    //             if (Object.keys(_queue).length) {
 
-                    var arrDistance = Object.keys(_queue).map(function(item) {
-                        return ({
-                            floor: item,
-                            distance: Math.abs(item - floorNum)
-                        })
-                    });
+    //                 var arrDistance = Object.keys(_queue).map(function(item) {
+    //                     return ({
+    //                         floor: item,
+    //                         distance: Math.abs(item - floorNum)
+    //                     })
+    //                 });
 
-                    arrDistance = arrDistance.sort(function(a, b) {
-                        return a.distance - b.distance;
-                    })
+    //                 arrDistance = arrDistance.sort(function(a, b) {
+    //                     return a.distance - b.distance;
+    //                 })
 
-                    return arrDistance[0];
-                }
+    //                 return arrDistance[0];
+    //             }
 
-                return null;
-            }
-        }
-    })(),
+    //             return null;
+    //         }
+    //     }
+    // })(),
+
+    floorsPrototype : {},
 
     floors: [],
 
     init: function(elevators, floors) {
 
+        var that = this;
         var elevators2 = elevators;//[elevators[0]];
+
+
+
+        this.floorsPrototype = ( function(floors) { 
+            var _floors = floors;
+
+            return {
+
+                isClicked: function(level, direction) {
+                    return (_floors[level]['buttonStates'][direction].length > 0);
+                },
+
+                getNearFloor: function( level ) {
+                    
+                    var clickedFloors = _floors.filter(function(item) {
+                        return ( ( item['buttonStates'][that.const.UP].length > 0 ) || ( item['buttonStates'][that.const.DOWN].length > 0  ) )
+                    });
+
+                    if (clickedFloors.length) {
+
+                        var arrDistance = clickedFloors.map(function(item) {
+                            return ({
+                                floor: item.level,
+                                distance: Math.abs( item.level - level )
+                            })
+                        });
+
+                        arrDistance = arrDistance.sort(function(a, b) {
+                            return a.distance - b.distance;
+                        })
+
+                        return arrDistance[0];
+                    }
+
+                    return null;
+
+                }
+            }
+
+        }).call(this, floors);
         
+
+
         this.manager = (function(elevators) {
 
             var _elevators = elevators;
@@ -116,10 +161,6 @@
                             if ( freeElevator ) {
                                 freeElevator.goToFloor(params.level);
                             }
-                            // else {
-                            this.floorQueue.add(params.level, this.const.DOWN);
-                            console.debug('add', params.level, this.const.DOWN );
-                            // }
 
                             break;
 
@@ -131,30 +172,28 @@
                             if ( freeElevator ) {
                                 freeElevator.goToFloor(params.level);
                             }
-                            // else {
-                            this.floorQueue.add(params.level, this.const.UP);
-                            console.debug('add', params.level, this.const.UP );
-                            // }
 
                             break;
 
                         
                         case this.const.EVENTS.FLOOR_BUTTON_PRESSED:
+
+                            params.owner.destinationQueue.push( params.floor );
                         
                             if ( params.owner.currentFloor() > params.floor ) {
+
                                 params.owner.goingDownIndicator(true);
                                 params.owner.goingUpIndicator(false);
 
-                                params.owner.destinationQueue.push( params.floor );
                                 params.owner.destinationQueue = params.owner.destinationQueue.sort(function(a, b) {
                                     return b - a;
                                 });
                         
                             } else {
+
                                 params.owner.goingDownIndicator(false);
                                 params.owner.goingUpIndicator(true);
 
-                                params.owner.destinationQueue.push( params.floor );
                                 params.owner.destinationQueue = params.owner.destinationQueue.sort(function(a, b) {
                                     return a - b;
                                 });
@@ -178,7 +217,7 @@
                                     canAddToQueue = true;
                                 }
 
-                                if ( this.floorQueue.isClicked(item, this.const.UP) || this.floorQueue.isClicked(item, this.const.DOWN) ) {
+                                if ( this.floorsPrototype.isClicked(item, this.const.UP) || this.floorsPrototype.isClicked(item, this.const.DOWN) ) {
                                     canAddToQueue = true;
                                 }
 
@@ -210,11 +249,11 @@
                                 params.owner.goingDownIndicator(true);
                                 params.owner.goingUpIndicator(true);
 
-                                var nearFloor = this.floorQueue.getNearFloor(params.floor);
+                                var nearFloor = this.floorsPrototype.getNearFloor(params.floor);
                                 
                                 if (nearFloor != null ) {
-                                    this.floorQueue.remove(nearFloor.floor, this.const.UP);
-                                    this.floorQueue.remove(nearFloor.floor, this.const.DOWN);
+                                    // this.floorQueue.remove(nearFloor.floor, this.const.UP);
+                                    // this.floorQueue.remove(nearFloor.floor, this.const.DOWN);
                                     params.owner.goToFloor(nearFloor.floor);
                                 }
                                 
@@ -229,23 +268,14 @@
                             if (! this.const.LOADSTAT[params.owner.maxPassengerCount().toString()] ) throw new Error("don't have const LOADSTAT for " + params.owner.maxPassengerCount() +  " passenger")
 
                             if ( params.owner.loadFactor() <  this.const.LOADSTAT[params.owner.maxPassengerCount().toString()] ) {
-                                stopAtThisFloor = stopAtThisFloor || this.floorQueue.isClicked(params.floor, params.direction);
+                                stopAtThisFloor = stopAtThisFloor || this.floorsPrototype.isClicked(params.floor, params.direction);
                             }
 
                             stopAtThisFloor = stopAtThisFloor || (params.owner.getPressedFloors().indexOf(params.floor) !== -1);
 
-                            console.log(floors);
-                            console.debug(
-                                'passing', params.floor, params.direction,
-                                'floor obj', this.floorQueue.getObj(),
-                                'clicked floor', this.floorQueue.isClicked(params.floor, params.direction),
-                                'load factor', params.owner.loadFactor(), this.const.LOADSTAT[params.owner.maxPassengerCount().toString()]
-                            );
-
-                            // console.log(params.owner.maxPassengerCount());
 
                             if ( stopAtThisFloor ) {
-                                this.floorQueue.remove(params.floor, params.direction);
+                                // this.floorQueue.remove(params.floor, params.direction);
                                 params.owner.goToFloor(params.floor, true);
                             }
 
