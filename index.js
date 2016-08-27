@@ -12,6 +12,7 @@
         },
         LOADSTAT: {
             '4': 0.65,
+            '5' : 0.65,
             '6' : 0.65,
             '10': 0.6
         }
@@ -19,58 +20,6 @@
 
     manager: {},
 
-    // floorQueue: (function() {
-    //     var _queue = {}
-    //     return {
-    //         add: function(level, direction) {
-    //             if ( !_queue[level] ) _queue[level] = { };
-    //             _queue[level][direction] = true;
-
-    //         },
-
-    //         remove: function(level, direction) {
-    //             if (! _queue[level] ) return false;
-    //             if (! _queue[level][direction] ) return false;
-
-
-    //             delete _queue[level][direction];
-
-    //             if ( !Object.keys(_queue[level]).length ) {
-    //                 delete _queue[level];
-    //             };
-
-    //             return true;
-    //         },
-
-    //         isClicked: function(level, direction) {
-    //             return _queue[level] && _queue[level][direction];
-    //         },
-
-    //         getObj: function() {
-    //             return Object.assign({}, _queue);
-    //         },
-
-    //         getNearFloor: function(floorNum, direction) {
-    //             if (Object.keys(_queue).length) {
-
-    //                 var arrDistance = Object.keys(_queue).map(function(item) {
-    //                     return ({
-    //                         floor: item,
-    //                         distance: Math.abs(item - floorNum)
-    //                     })
-    //                 });
-
-    //                 arrDistance = arrDistance.sort(function(a, b) {
-    //                     return a.distance - b.distance;
-    //                 })
-
-    //                 return arrDistance[0];
-    //             }
-
-    //             return null;
-    //         }
-    //     }
-    // })(),
 
     floorsPrototype : {},
 
@@ -79,8 +28,7 @@
     init: function(elevators, floors) {
 
         var that = this;
-        var elevators2 = elevators;//[elevators[0]];
-
+        var elevators2 = elevators;
 
 
         this.floorsPrototype = ( function(floors) { 
@@ -149,6 +97,34 @@
                 return null;
 
             };
+
+
+            var IsHaveEmptyPlaces = function( elevator ) {
+
+                if (! that.const.LOADSTAT[elevator.maxPassengerCount().toString()] ) throw new Error("don't have const LOADSTAT for " + elevator.maxPassengerCount() +  " passenger")
+
+                return elevator.loadFactor() <  that.const.LOADSTAT[ elevator.maxPassengerCount().toString() ]
+            }
+
+            var availableElevator = function( elevator, floor, direction ) {
+                var isAvailable = false;
+                _elevators.map( function( item, key ) {
+                    if ( item === elevator ) {
+                        return;
+                    }
+
+                    if ( item.currentFloor() === floor ) {
+                        if ( ( direction == that.const.UP && item.goingUpIndicator() ) || 
+                            ( direction == that.const.DOWN && item.goingDownIndicator() ) ) {
+                            console.log(key);
+                            isAvailable = true;
+                        }
+                    }
+                } );
+
+                return isAvailable;
+            }
+
             return {
                 triggerEvent: (function(evType, params) {
                     switch(evType) {
@@ -235,12 +211,10 @@
                                 if (params.owner.destinationQueue[0] < params.floor) {
                                     params.owner.goingDownIndicator(true);
                                     params.owner.goingUpIndicator(false);
-                                    // this.floorQueue.remove(params.owner.currentFloor(), this.const.DOWN);
                                 }
                                 else {
                                     params.owner.goingDownIndicator(false);
                                     params.owner.goingUpIndicator(true);
-                                    // this.floorQueue.remove(params.owner.currentFloor(), this.const.UP);
                                 }
 
 
@@ -252,8 +226,6 @@
                                 var nearFloor = this.floorsPrototype.getNearFloor(params.floor);
                                 
                                 if (nearFloor != null ) {
-                                    // this.floorQueue.remove(nearFloor.floor, this.const.UP);
-                                    // this.floorQueue.remove(nearFloor.floor, this.const.DOWN);
                                     params.owner.goToFloor(nearFloor.floor);
                                 }
                                 
@@ -265,17 +237,17 @@
 
                             var stopAtThisFloor = false;
 
-                            if (! this.const.LOADSTAT[params.owner.maxPassengerCount().toString()] ) throw new Error("don't have const LOADSTAT for " + params.owner.maxPassengerCount() +  " passenger")
 
-                            if ( params.owner.loadFactor() <  this.const.LOADSTAT[params.owner.maxPassengerCount().toString()] ) {
-                                stopAtThisFloor = stopAtThisFloor || this.floorsPrototype.isClicked(params.floor, params.direction);
+                            if ( IsHaveEmptyPlaces( params.owner ) ) {
+                                stopAtThisFloor = stopAtThisFloor || this.floorsPrototype.isClicked( params.floor, params.direction );
                             }
 
                             stopAtThisFloor = stopAtThisFloor || (params.owner.getPressedFloors().indexOf(params.floor) !== -1);
 
+                            stopAtThisFloor = stopAtThisFloor && (!availableElevator( params.owner,  params.floor, params.direction ));
+
 
                             if ( stopAtThisFloor ) {
-                                // this.floorQueue.remove(params.floor, params.direction);
                                 params.owner.goToFloor(params.floor, true);
                             }
 
@@ -313,7 +285,6 @@
             });
 
             item.on('idle', function() {
-                // console.log('idle');
             });
 
             item.on( that.const.EVENTS.PASSING_FLOOR, function(floorNum, direction) {
@@ -323,7 +294,6 @@
                     direction: direction,
                     owner: this
                 });
-                // console.debug( 'distanceQueue', this.destinationQueue );
             })
 
             item.on( that.const.EVENTS.STOPPED_AT_FLOOR, function(floorNum) {
